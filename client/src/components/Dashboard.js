@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { collection, deleteDoc, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
+import { Link } from "react-router-dom";
+import { db } from "../firebase";
 
 function Dashboard() {
   const [weatherData, setWeatherData] = useState(null);
@@ -9,28 +12,88 @@ function Dashboard() {
   const [sortOrder, setSortOrder] = useState("asc");
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  
 
   useEffect(() => {
-    // Fetch weather data from API
-    fetch("https://api.openweathermap.org/data/2.5/weather?q=kakinada&appid=09a565665eb0db2fe6d53e599b5a552d")
-      .then((response) => response.json())
-      .then((data) => setWeatherData(data))
-      .catch((error) => console.error("Error fetching weather:", error));
+    // Fetch weather data based on user's location
+    const fetchWeatherData = async () => {
+      try {
+        if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition(async (position) => {
+            const { latitude, longitude } = position.coords;
+            const response = await fetch(
+              `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=09a565665eb0db2fe6d53e599b5a552d`
+            );
+            const data = await response.json();
+            setWeatherData(data);
+          });
+        } else {
+          console.log("Geolocation is not supported by your browser.");
+        }
+      } catch (error) {
+        console.error("Error fetching weather:", error);
+      }
+    };
 
-    // Fetch user data (replace with your data fetching logic)
-    const fetchedUsers = [
-      { id: 1, username: "user1", addedDate: "2023-11-21", status: "active" },
-      { id: 2, username: "user2", addedDate: "2024-02-05", status: "inactive" },
-    ];
-    setUsers(fetchedUsers);
-    setFilteredUsers(fetchedUsers);
+    fetchWeatherData();
+
+    // Fetch user data from Firestore
+    const fetchUsers = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const newData = querySnapshot.docs.map((doc) => ({
+          ...doc.data(),
+          id: doc.id,
+        }));
+        setUsers(newData);
+        setFilteredUsers(newData);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      }
+    };
+
+    fetchUsers();
   }, []);
 
-  const handleUserAction = (action, userId) => {
-    // Handle user actions (add, delete, change status)
-    // Update the users state accordingly
-    console.log("User action:", action, "User ID:", userId);
+  const handleUserAction = async (action, userId) => {
+    try {
+      if (action === "delete") {
+        const userRef = doc(db, "users", userId);
+        await deleteDoc(userRef);
+  
+        // Remove the deleted user from both users and filteredUsers state
+        setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId));
+        setFilteredUsers((prevUsers) =>
+          prevUsers.filter((user) => user.id !== userId)
+        );
+      } else if (action === "changeStatus") {
+        const userRef = doc(db, "users", userId);
+        const userDoc = await getDoc(userRef);
+        
+        if (!userDoc.exists()) {
+          console.error("User not found");
+          return;
+        }
+    
+        const userData = userDoc.data();
+        const newStatus = !userData.isActive;
+    
+        await updateDoc(userRef, { isActive: newStatus });
+    
+        // Update the local state to reflect the changes
+        setUsers((prevUsers) =>
+          prevUsers.map((user) =>
+            user.id === userId ? { ...user, isActive: newStatus } : user
+          )
+        );
+        setFilteredUsers((prevUsers) =>
+          prevUsers.map((user) =>
+            user.id === userId ? { ...user, isActive: newStatus } : user
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error changing user status:", error);
+    }
   };
 
   const handleSearch = (searchText) => {
@@ -60,13 +123,21 @@ function Dashboard() {
     setFilteredUsers(sortedUsers);
   };
 
-  const handleDateFilter = (start, end) => {
-    setStartDate(start);
-    setEndDate(end);
+  const handleDateFilter = (startDate, endDate) => {
+    if (!startDate && !endDate) {
+      setFilteredUsers(users);
+      return;
+    }
 
     const filtered = users.filter((user) => {
-      const addedDate = new Date(user.addedDate);
-      return (!start || addedDate >= new Date(start)) && (!end || addedDate <= new Date(end));
+      const userDate = new Date(user.date);
+      if (startDate && endDate) {
+        return userDate >= new Date(startDate) && userDate <= new Date(endDate);
+      } else if (startDate) {
+        return userDate >= new Date(startDate);
+      } else if (endDate) {
+        return userDate <= new Date(endDate);
+      }
     });
 
     setFilteredUsers(filtered);
@@ -75,21 +146,29 @@ function Dashboard() {
   const displayUsers = filteredUsers.map((user) => (
     <tr key={user.id} className="border-b border-gray-200">
       <td className="px-4 py-2 text-center">{user.username}</td>
-      <td className="px-4 py-2 text-center">{user.addedDate}</td>
-      <td className="px-4 py-2 text-center">{user.status}</td>
+      <td className="px-4 py-2 text-center">
+        {new Date(user.date).toLocaleDateString("en-US", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })}
+      </td>
+      <td className="px-4 py-2 text-center">
+        {user.isActive ? "Active" : "Inactive"}
+      </td>
       <td className="px-4 py-2 text-center">
         {/* Add buttons for actions (add, delete, change status) */}
         <button
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
-          onClick={() => handleUserAction("add", user.id)}
-        >
-          Add
-        </button>
-        <button
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-2"
+          className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded mr-2"
           onClick={() => handleUserAction("delete", user.id)}
         >
-          delete
+          Delete
+        </button>
+        <button
+          className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
+          onClick={() => handleUserAction("changeStatus", user.id)}
+        >
+          Change Status
         </button>
       </td>
     </tr>
@@ -98,12 +177,12 @@ function Dashboard() {
   return (
     <div className="container mx-auto px-4">
       <main className="mt-8">
-        <section className="flex flex-col items-center bg-gray-200 p-8 rounded-lg shadow-md">
+        <section className="flex flex-col items-center bg-gray-100 p-8 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold mb-4">Current Weather</h2>
           {weatherData ? (
             <div className="flex items-center">
               <img
-                src={`https://openweathermap.org/img/wn/${weatherData.weather[0].icon}@2x.png`}
+                src={`https://openweathermap.org/img/wn/${weatherData.weather[0].icon}.png`}
                 alt={weatherData.weather[0].description}
                 className="w-20 h-20 mr-4"
               />
@@ -152,14 +231,19 @@ function Dashboard() {
               <input
                 type="date"
                 className="border rounded-md p-2 mr-2"
-                onChange={(e) => handleDateFilter(e.target.value, endDate)}
+                onChange={(e) => handleDateFilter(e.target.value, null)}
               />
               <input
                 type="date"
                 className="border rounded-md p-2"
-                onChange={(e) => handleDateFilter(startDate, e.target.value)}
+                onChange={(e) => handleDateFilter(null, e.target.value)}
               />
             </div>
+            <Link to="/user-form">
+              <button className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                Add Users
+              </button>
+            </Link>
           </div>
           <table className="min-w-full table-auto">
             <thead>

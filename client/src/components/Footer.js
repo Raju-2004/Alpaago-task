@@ -3,9 +3,7 @@ import React from "react";
 const Footer = () => {
   return (
     <div className="bg-gray-800 text-white p-8 rounded-t-3xl">
-      
       <div className="flex flex-col md:flex-row justify-between">
-        
         <div>
           
           <h2 className="text-2xl mb-2">Contact information</h2>

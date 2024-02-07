@@ -5,6 +5,9 @@ import { createBrowserRouter, Outlet } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import Header from "./Header";
 import Footer from "./Footer";
+import ForgotPassword from "./ForgotPassword";
+import UserForm from "./UserForm";
+import LandingPage from "./LandingPage";
 const App = () => {
   return (
     <AuthProvider>
@@ -25,12 +28,24 @@ export const AppRouter = createBrowserRouter([
     children: [
       {
         path: "/",
-        element: <Dashboard/>
+        element: <LandingPage/>
+      },
+      {
+        path:'/dashboard',
+        element:<Dashboard/>
       },
       {
         path: "/signup",
         element: <Signup />,
       },
+      {
+        path:'/forgot-password',
+        element:<ForgotPassword/>
+      },
+      {
+        path:'user-form',
+        element:<UserForm/>
+      }
     ],
   },
   
