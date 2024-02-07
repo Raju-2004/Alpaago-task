@@ -1,5 +1,6 @@
+/* eslint-disable array-callback-return */
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
+// import { useAuth } from "../contexts/AuthContext";
 import { collection, deleteDoc, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
 import { Link } from "react-router-dom";
 import { db } from "../firebase";
@@ -10,8 +11,8 @@ function Dashboard() {
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [sortBy, setSortBy] = useState("username");
   const [sortOrder, setSortOrder] = useState("asc");
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  // const [startDate, setStartDate] = useState(null);
+  // const [endDate, setEndDate] = useState(null);
 
   useEffect(() => {
     // Fetch weather data based on user's location
